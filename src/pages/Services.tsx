@@ -1,47 +1,4 @@
 import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { services } from "../data/packages";
-export function Services() {
-  return (
-    <main>
-      <section className="page-hero">
-        <span className="eyebrow">Services</span>
-        <h1>
-          Coverage that fits
-          <br />
-          <i>the occasion.</i>
-        </h1>
-        <p>
-          Every project starts with a conversation. These are the ways we most
-          often work with clients.
-        </p>
-      </section>
-      <section className="services-list">
-        {services.map((s, i) => (
-          <article className="service-row" key={s.name}>
-            <span>0{i + 1}</span>
-            <div>
-              <h2>{s.name}</h2>
-              <p>{s.description}</p>
-              <small>{s.details}</small>
-            </div>
-            <Link to="/booking" aria-label={`Inquire about ${s.name}`}>
-              <ArrowUpRight />
-            </Link>
-          </article>
-        ))}
-      </section>
-      <section className="note-section">
-        <span className="eyebrow">Not sure what you need?</span>
-        <h2>That's completely fine.</h2>
-        <p>
-          Tell us what you're planning, your date, and what you want
-          photographed. We'll help shape the coverage from there.
-        </p>
-        <Link className="text-link" to="/booking">
-          Talk to the studio →
-        </Link>
-      </section>
-    </main>
-  );
-}
+export function Services() { return <main><section className="page-hero"><span className="eyebrow">Services</span><h1>Coverage that fits<br/><i>the occasion.</i></h1><p>Every project starts with a conversation. These are the ways we most often work with clients.</p></section><section className="services-list">{services.map((s,i)=><article className="service-row" key={s.name}><span>0{i+1}</span><div><h2>{s.name}</h2><p>{s.description}</p><small>{s.details}</small></div><Link to="/booking" aria-label={`Inquire about ${s.name}`}><ArrowUpRight/></Link></article>)}</section><section className="note-section"><span className="eyebrow">Not sure what you need?</span><h2>That's completely fine.</h2><p>Tell us what you're planning, your date, and what you want photographed. We'll help shape the coverage from there.</p><Link className="text-link" to="/booking">Talk to the studio →</Link></section></main>; }

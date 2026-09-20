@@ -36,3 +36,9 @@ Choose `dist` as the public directory and configure it as a single-page app.
 
 ### Branding
 The JetClicks emblem is included at `public/images/jetclicks-logo.png` and is used in the navbar, footer, and favicon. The established `JetClicks` name is retained without introducing a replacement brand name.
+
+### Vercel build compatibility
+The Vercel build uses Node to invoke Vite directly rather than executing the
+`node_modules/.bin/vite` shim. This avoids permission-denied errors in Vercel
+build environments where the generated `.bin` executable can lose its execute
+permission.
