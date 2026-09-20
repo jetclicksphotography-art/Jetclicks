@@ -11,13 +11,17 @@ export function Navbar() {
     ["/about", "About"],
     ["/contact", "Contact"],
   ];
+
   return (
     <header className="site-header">
       <div className="nav-wrap">
-        <Link to="/" className="brand" onClick={() => setOpen(false)}>
-          <span>JetClicks</span>
-          <small>PHOTOGRAPHY STUDIO</small>
+        <Link to="/" className="brand" onClick={() => setOpen(false)} aria-label="JetClicks home">
+          <span className="brand-mark">
+            <img src="/images/jetclicks-logo.png" alt="" />
+          </span>
+          <span className="brand-name">JetClicks</span>
         </Link>
+
         <nav className={`desktop-nav ${open ? "mobile-open" : ""}`}>
           {links.map(([to, label]) => (
             <NavLink key={to} to={to} onClick={() => setOpen(false)}>
@@ -32,9 +36,11 @@ export function Navbar() {
             Start an inquiry
           </Link>
         </nav>
+
         <button
           className="menu-button"
           aria-label="Toggle navigation"
+          aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
           {open ? <X size={22} /> : <Menu size={22} />}

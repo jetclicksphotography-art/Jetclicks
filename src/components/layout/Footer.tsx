@@ -5,7 +5,12 @@ export function Footer() {
     <footer className="footer">
       <div className="footer-grid">
         <div>
-          <div className="footer-brand">JetClicks</div>
+          <Link to="/" className="footer-brand-lockup" aria-label="JetClicks home">
+            <span className="footer-brand-mark">
+              <img src="/images/jetclicks-logo.png" alt="" />
+            </span>
+            <span className="footer-brand">JetClicks</span>
+          </Link>
           <p>Photography for weddings, people, events, and brands.</p>
         </div>
         <div>

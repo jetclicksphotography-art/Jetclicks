@@ -32,3 +32,7 @@ Choose `dist` as the public directory and configure it as a single-page app.
 - Replace the contact details in `src/pages/Contact.tsx`.
 - Connect `InquiryForm.tsx` to Firebase/Supabase/an email/API endpoint. The included submission is intentionally frontend-only.
 - Change the studio name in `Navbar.tsx`, `Footer.tsx`, and `index.html`.
+
+
+### Branding
+The JetClicks emblem is included at `public/images/jetclicks-logo.png` and is used in the navbar, footer, and favicon. The established `JetClicks` name is retained without introducing a replacement brand name.
