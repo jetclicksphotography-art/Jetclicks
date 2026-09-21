@@ -11566,7 +11566,7 @@ function bh() {
         className: "footer-bottom",
         children: [
           d.jsxs("span", {
-            children: ["© ", new Date().getFullYear(), " Atelier Photography"],
+            children: ["© ", new Date().getFullYear(), " JetClicks Photography"],
           }),
           d.jsx("span", {
             children: "Designed for real conversations, not complicated forms.",
@@ -12402,7 +12402,7 @@ function sm() {
           }),
           d.jsx("p", {
             children:
-              "Atelier is an independent photography studio built around thoughtful observation and photographs that feel like the people in them.",
+              "JetClicks is an independent photography studio built around thoughtful observation and photographs that feel like the people in them.",
           }),
         ],
       }),
