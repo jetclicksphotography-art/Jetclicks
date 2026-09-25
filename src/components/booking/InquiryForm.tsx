@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import type { InquiryData } from "../../types";
+import { useSearchParams } from "react-router-dom";
+import type { InquiryData, PackageCategory } from "../../types";
 import { api } from "../../lib/api";
+import { packages, peso } from "../../data/packages";
 import { Button } from "../ui/Button";
+
+/** Package categories map onto the photography types offered in this form. */
+const serviceForCategory: Record<PackageCategory, string> = {
+  "Pre-wedding": "Prenup",
+  Wedding: "Wedding",
+  Proposal: "Proposal",
+  Birthdays: "Birthday",
+};
 
 const initial: InquiryData = {
   service: "Wedding",
@@ -18,7 +28,17 @@ const initial: InquiryData = {
 };
 
 export function InquiryForm() {
-  const [data, setData] = useState(initial);
+  const [params] = useSearchParams();
+  // Arriving from a package card pre-selects the type and names the tier.
+  const [data, setData] = useState<InquiryData>(() => {
+    const chosen = packages.find((p) => p.id === params.get("package"));
+    if (!chosen) return initial;
+    return {
+      ...initial,
+      service: serviceForCategory[chosen.category],
+      message: `I'm interested in the ${chosen.name} package (${peso(chosen.price)} - ${chosen.kind}).`,
+    };
+  });
   const [sent, setSent] = useState(false);
   const [bookingId, setBookingId] = useState("");
   const [agreement, setAgreement] = useState({ name: "JetClicks Booking Waiver & Agreement (Placeholder)", url: "/agreements/jetclicks-booking-waiver-placeholder.pdf" });
@@ -61,7 +81,7 @@ export function InquiryForm() {
     <form className="inquiry-form" onSubmit={submit}>
       <div className="form-section"><span className="form-number">01</span><div><h3>Tell us what you're planning</h3><p>Start with the essentials. We'll ask only what we need.</p></div></div>
       <div className="form-grid">
-        <label>Photography type<select value={data.service} onChange={(e) => update("service", e.target.value)}>{["Wedding","Debut","Portraits","Events","Corporate","Product","Other"].map((x) => <option key={x}>{x}</option>)}</select></label>
+        <label>Photography type<select value={data.service} onChange={(e) => update("service", e.target.value)}>{["Wedding","Prenup","Proposal","Birthday","Debut","Portraits","Events","Corporate","Product","Other"].map((x) => <option key={x}>{x}</option>)}</select></label>
         <label>Preferred date<input required type="date" min={new Date().toISOString().slice(0,10)} value={data.date} onChange={(e) => update("date", e.target.value)} /></label>
         <label>Location<input required placeholder="City or venue" value={data.location} onChange={(e) => update("location", e.target.value)} /></label>
         <label>Coverage<select value={data.coverage} onChange={(e) => update("coverage", e.target.value)}>{["2 hours","4 hours","6 hours","8 hours","Full day","Not sure yet"].map((x) => <option key={x}>{x}</option>)}</select></label>

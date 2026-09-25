@@ -1,10 +1,11 @@
-import { addLog, deleteConversation, getState, storageMode, updateBooking, updateConversation } from './_lib/store.js';
+import { addLog, addPortfolioItem, deleteConversation, deletePortfolioItem, getPortfolio, getState, storageMode, updateBooking, updateConversation } from './_lib/store.js';
 import { sendMail, smtpConfigured, smtpSettings, verifySmtp } from './_lib/smtp.js';
-import { driveEnabled } from './_lib/google.js';
+import { deleteFileAsUser, driveEnabled, driveUploadEnabled, uploadFileAsUser } from './_lib/google.js';
 import { requireAdmin } from './_lib/auth.js';
 import { cleanText, id, isEmail, json, now, parseBody } from './_lib/util.js';
 
 const BOOKING_STATUSES = ['new', 'confirmed', 'ongoing', 'finished', 'cancelled'];
+const PORTFOLIO_CATEGORIES = ['Wedding', 'Prenup', 'Proposal', 'Birthdays', 'Portrait', 'Island tour', 'Family', 'Drones', 'Corporate', 'Ceremony'];
 
 /** Per-conversation summary the inbox list is built from. */
 function summarize(conversation) {
@@ -37,6 +38,7 @@ export default async function handler(req, res) {
         system: {
           storage: storageMode(),
           drive: driveEnabled(),
+          driveUpload: driveUploadEnabled(),
           smtpConfigured: smtpConfigured(),
           smtpHost: smtp.host,
           smtpPort: smtp.port,
@@ -68,6 +70,63 @@ export default async function handler(req, res) {
       return json(res, 200, { ok: Boolean(result.sent), stage: 'send', verified: true, to: target, settings: verification.settings, ...result });
     }
 
+
+    if (action === 'portfolio.add') {
+      if (!driveUploadEnabled()) {
+        return json(res, 503, { error: 'Photo uploads need the studio Google account connected. Set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET and GOOGLE_OAUTH_REFRESH_TOKEN (see SECURITY.md / setup).' });
+      }
+      const category = cleanText(body.category, 30);
+      if (!PORTFOLIO_CATEGORIES.includes(category)) return json(res, 400, { error: 'Choose a valid category.' });
+      const caption = cleanText(body.caption, 120);
+      const alt = cleanText(body.alt, 300) || caption;
+      const base64 = cleanText(body.base64, 1_700_000);
+      if (!base64) return json(res, 400, { error: 'Image data is required.' });
+      // Accept the compact formats produced by current and older clients.
+      const buffer = Buffer.from(base64, 'base64');
+      const isWebp = buffer.length > 12 &&
+        buffer.subarray(0, 4).toString('latin1') === 'RIFF' &&
+        buffer.subarray(8, 12).toString('latin1') === 'WEBP';
+      const isJpeg = buffer.length > 3 &&
+        buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+      if (!isWebp && !isJpeg) return json(res, 400, { error: 'Image must be a JPEG or WebP file.' });
+      if (buffer.length > 900_000) return json(res, 400, { error: 'Image must be 900KB or smaller after conversion.' });
+
+      const itemId = id('photo');
+      const mimeType = isJpeg ? 'image/jpeg' : 'image/webp';
+      const uploaded = await uploadFileAsUser({ name: `${itemId}.${isJpeg ? 'jpg' : 'webp'}`, buffer, mimeType });
+      if (!uploaded?.id) return json(res, 503, { error: 'Drive upload failed.' });
+
+      const existing = await getPortfolio();
+      const item = {
+        id: itemId,
+        createdAt: now(),
+        category,
+        caption,
+        alt,
+        driveId: uploaded.id,
+        order: String(existing.length + 1),
+      };
+      await addPortfolioItem(item);
+      await addLog({
+        timestamp: now(), actor: 'admin', action: 'portfolio.added', entityType: 'portfolio', entityId: itemId,
+        metadataJson: JSON.stringify({ category, caption, driveId: uploaded.id })
+      });
+      return json(res, 200, { ok: true, item });
+    }
+
+    if (action === 'portfolio.delete') {
+      const targetId = cleanText(body.id, 100);
+      const item = (await getPortfolio()).find((x) => x.id === targetId);
+      if (!item) return json(res, 404, { error: 'Photo not found.' });
+      await deletePortfolioItem(targetId);
+      await deleteFileAsUser(item.driveId);
+      await addLog({
+        timestamp: now(), actor: 'admin', action: 'portfolio.deleted', entityType: 'portfolio', entityId: targetId,
+        metadataJson: JSON.stringify({ category: item.category, driveId: item.driveId })
+      });
+      return json(res, 200, { ok: true });
+    }
+
     const state = await getState();
 
     if (action === 'booking.update') {
@@ -80,11 +139,12 @@ export default async function handler(req, res) {
         booking.status = status;
       }
       if (typeof body.flagged === 'boolean') booking.flagged = body.flagged;
+      if (typeof body.archived === 'boolean') booking.archived = body.archived;
       if (body.notes !== undefined) booking.notes = cleanText(body.notes, 2000);
       await updateBooking(booking);
       await addLog({
         timestamp: now(), actor: 'admin', action: 'booking.updated', entityType: 'booking', entityId: booking.bookingId,
-        metadataJson: JSON.stringify({ status: booking.status, flagged: booking.flagged })
+        metadataJson: JSON.stringify({ status: booking.status, flagged: booking.flagged, archived: booking.archived })
       });
 
       // Status changes are what the client actually cares about.
@@ -145,7 +205,6 @@ export default async function handler(req, res) {
       });
       return json(res, 200, { ok: true });
     }
-
     return json(res, 400, { error: 'Unknown action' });
   } catch (error) {
     console.error('admin', error);

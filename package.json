@@ -7,16 +7,17 @@
     "dev": "node ./node_modules/vite/bin/vite.js",
     "build": "node ./node_modules/vite/bin/vite.js build",
     "preview": "node ./node_modules/vite/bin/vite.js preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^10.0.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.1.1"
   },
   "devDependencies": {
+    "@types/node": "^22.20.4",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",

@@ -1,13 +1,54 @@
 import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
-import { featured } from "../data/portfolio";
+import { categories, featured, films } from "../data/portfolio";
 import { PortfolioCard } from "../components/portfolio/PortfolioCard";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PortfolioModal } from "../components/portfolio/PortfolioModal";
+
+/** Hero slides cross-fade through the studio's strongest frames. */
+const heroSlides = [
+  { image: "/images/portfolio/wedding/wedding-10.jpg", label: "Weddings", alt: "Bride and groom facing each other at a gilded church altar surrounded by white flowers" },
+  { image: "/images/portfolio/prenup/prenup-01.jpg", label: "Prenup", alt: "Couple holding hands beneath a tree with limestone cliffs behind them" },
+  { image: "/images/portfolio/proposal/proposal-06.jpg", label: "Proposals", alt: "Couple embracing on an empty sandbar as the sun sets over the water" },
+  { image: "/images/portfolio/wedding/wedding-05.jpg", label: "Weddings", alt: "Bride with a long veil and groom in cream embracing on a palm-lined beach" },
+  { image: "/images/portfolio/wedding/wedding-15.jpg", label: "Weddings", alt: "Bride framed in a flower-covered doorway at the top of the aisle, seen past the guests" },
+];
+
+const HERO_INTERVAL = 120_000; // two minutes
+
+function HeroImage() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setIndex((i) => (i + 1) % heroSlides.length),
+      HERO_INTERVAL,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <div className="hero-image">
+      {heroSlides.map((slide, i) => (
+        <img
+          key={slide.image}
+          className={`hero-slide ${i === index ? "is-active" : ""}`}
+          src={slide.image}
+          alt={i === 0 ? slide.alt : ""}
+          aria-hidden={i === index ? undefined : true}
+          loading={i === 0 ? "eager" : "lazy"}
+        />
+      ))}
+      <span className="image-note">
+        {String(index + 1).padStart(2, "0")} / {heroSlides[index].label.toUpperCase()}
+      </span>
+    </div>
+  );
+}
 
 export function Home() {
   const [selected, setSelected] = useState<number | null>(null);
+  const [selectedFilm, setSelectedFilm] = useState<number | null>(null);
+  const homeFilms = films.slice(0, 4);
   return (
     <main>
       <section className="hero">
@@ -28,13 +69,7 @@ export function Home() {
             </Button>
           </div>
         </div>
-        <div className="hero-image">
-          <img
-            src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1800&q=90"
-            alt="Wedding couple in an editorial photograph"
-          />
-          <span className="image-note">01 / FEATURED STORY</span>
-        </div>
+        <HeroImage />
       </section>
       <section className="intro section">
         <div className="section-kicker">The studio</div>
@@ -71,20 +106,36 @@ export function Home() {
           ))}
         </div>
       </section>
+      {homeFilms.length > 0 && (
+        <section className="section films-section">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">Films · Same-day edit</span>
+              <h2>The day, as it moved.</h2>
+            </div>
+            <Link className="text-link" to="/portfolio?c=Films">
+              View all films →
+            </Link>
+          </div>
+          <div className="film-grid">
+            {homeFilms.map((item, i) => (
+              <PortfolioCard
+                key={item.id}
+                item={item}
+                large={i === 0}
+                onClick={() => setSelectedFilm(i)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       <section className="services-strip">
         <div>
           <span className="eyebrow">What we photograph</span>
           <h2>Built around your occasion.</h2>
         </div>
         <div className="service-links">
-          {[
-            "Wedding",
-            "Debut",
-            "Portraits",
-            "Events",
-            "Corporate",
-            "Product",
-          ].map((x) => (
+          {categories.map((x) => (
             <Link key={x} to="/portfolio">
               {x}
               <ArrowUpRight size={16} />
@@ -137,6 +188,14 @@ export function Home() {
           index={selected}
           onClose={() => setSelected(null)}
           onChange={setSelected}
+        />
+      )}
+      {selectedFilm !== null && (
+        <PortfolioModal
+          items={homeFilms}
+          index={selectedFilm}
+          onClose={() => setSelectedFilm(null)}
+          onChange={setSelectedFilm}
         />
       )}
     </main>

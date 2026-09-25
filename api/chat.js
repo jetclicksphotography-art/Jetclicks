@@ -143,14 +143,24 @@ export default async function handler(req, res) {
     conversation.messages = (conversation.messages || []).slice(-100);
     conversation.messages.push({ id: id('msg'), at: now(), from: 'client', text });
 
+    // Once a studio member has answered, the visitor is talking to a person.
+    // The bot stays quiet rather than interleaving canned replies with a real
+    // conversation - the same applies while a handoff is pending.
+    const studioHasReplied = (conversation.messages || []).some((m) => m.from === 'admin');
+    const liveWithStudio = studioHasReplied || conversation.status === 'needs-human';
+
     const reply = handoff
       ? {
           text: 'Thanks - this conversation is now flagged for the JetClicks studio team. A team member can reply right here, and if you left an email they can reach you there too.',
           suggestions: ['Keep chatting', 'Start an inquiry']
         }
-      : botReply(text, { service: cleanText(body.service, 100) });
+      : liveWithStudio
+        ? { text: '', suggestions: ['Start an inquiry'], live: true }
+        : botReply(text, { service: cleanText(body.service, 100) });
 
-    conversation.messages.push({ id: id('msg'), at: now(), from: 'bot', text: reply.text });
+    if (reply.text) {
+      conversation.messages.push({ id: id('msg'), at: now(), from: 'bot', text: reply.text });
+    }
     if (handoff) conversation.status = 'needs-human';
     // Anything the visitor sends is unread for the studio until an admin replies.
     conversation.unread = true;

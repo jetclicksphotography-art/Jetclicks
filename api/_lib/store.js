@@ -18,6 +18,7 @@ const emptyState = {
   bookings: [],
   conversations: [],
   logs: [],
+  portfolio: [],
   settings: {
     agreementUrl: '/agreements/jetclicks-booking-waiver-placeholder.pdf',
     agreementName: 'JetClicks Booking Waiver & Agreement (Placeholder)'
@@ -76,7 +77,7 @@ function byNewest(key) {
 }
 
 function normalizeBooking(booking) {
-  return { ...booking, flagged: truthy(booking.flagged), agreementAccepted: truthy(booking.agreementAccepted) };
+  return { ...booking, flagged: truthy(booking.flagged), agreementAccepted: truthy(booking.agreementAccepted), archived: truthy(booking.archived) };
 }
 
 function normalizeConversation(conversation) {
@@ -211,6 +212,43 @@ export async function addLog(log) {
     // Audit logging must never break the user-facing action.
     console.error('addLog failed:', error?.message || error);
   }
+}
+
+export async function getPortfolio() {
+  if (!sheetsEnabled()) {
+    const state = await readLocal();
+    return [...(state.portfolio || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  }
+  await ensureSheets();
+  const rows = await readSheetRows('Portfolio');
+  return rows
+    .filter((r) => r[0])
+    .map((r) => rowTo('Portfolio', r))
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+export async function addPortfolioItem(item) {
+  if (!sheetsEnabled()) {
+    const state = await readLocal();
+    state.portfolio = state.portfolio || [];
+    state.portfolio.push(item);
+    await writeLocal(state);
+    return item;
+  }
+  await appendSheetRows('Portfolio', [localToRow('Portfolio', item)]);
+  return item;
+}
+
+export async function deletePortfolioItem(id) {
+  if (!sheetsEnabled()) {
+    const state = await readLocal();
+    state.portfolio = (state.portfolio || []).filter((x) => x.id !== id);
+    await writeLocal(state);
+    return;
+  }
+  const rows = await readSheetRows('Portfolio');
+  const index = rows.findIndex((r) => r[0] === id);
+  if (index >= 0) await deleteSheetRow('Portfolio', index + 2);
 }
 
 export async function getSettings() {

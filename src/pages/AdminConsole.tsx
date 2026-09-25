@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Flag, LogOut, Mail, MessageSquare, RefreshCw, Send, Trash2, Upload } from "lucide-react";
+import { Archive, ArchiveRestore, Flag, LogOut, Mail, MessageSquare, RefreshCw, Send, Trash2, Upload } from "lucide-react";
 import type { AdminLog, BookingRecord, Conversation } from "../types";
 import { ApiError, api } from "../lib/api";
 
 const bookingStatuses: BookingRecord["status"][] = ["new", "confirmed", "ongoing", "finished", "cancelled"];
-const tabs = ["dashboard", "inbox", "bookings", "logs", "agreement", "system"] as const;
+const tabs = ["dashboard", "inbox", "bookings", "portfolio", "logs", "agreement", "system"] as const;
+const portfolioCategories = ["Wedding", "Prenup", "Proposal", "Birthdays", "Portrait", "Island tour", "Family", "Drones", "Corporate", "Ceremony"] as const;
 type Tab = (typeof tabs)[number];
 
 interface SystemInfo {
   storage: string;
   drive: boolean;
+  driveUpload?: boolean;
   smtpConfigured: boolean;
   smtpHost: string;
   smtpPort: number;
@@ -121,7 +123,8 @@ export function AdminConsole() {
   useEffect(() => {
     if (gate !== "open") return;
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 10000);
+    // 20s keeps the console live without hammering the Sheets read quota.
+    const timer = window.setInterval(() => void refresh(), 20000);
     return () => window.clearInterval(timer);
   }, [gate, refresh]);
 
@@ -155,7 +158,8 @@ export function AdminConsole() {
   }, [gate, tab, selected?.conversationId, selected?.unread]);
 
   const counts = useMemo(() => {
-    const bookings = data?.bookings || [];
+    // Archived bookings drop out of every active tally.
+    const bookings = (data?.bookings || []).filter((x) => !x.archived);
     const conversations = data?.conversations || [];
     return {
       newCount: bookings.filter((x) => x.status === "new").length,
@@ -340,7 +344,7 @@ export function AdminConsole() {
           </section>
           <section className="admin-dashboard-grid">
             <AdminPanel title="Latest bookings">
-              <BookingTable bookings={(data?.bookings || []).slice(0, 6)} compact onUpdate={mutate} />
+              <BookingTable bookings={(data?.bookings || []).filter((x) => !x.archived).slice(0, 6)} compact onUpdate={mutate} />
             </AdminPanel>
             <AdminPanel title={`Waiting for the studio (${counts.waiting})`}>
               <ConversationList
@@ -430,9 +434,11 @@ export function AdminConsole() {
       )}
 
       {tab === "bookings" && (
-        <AdminPanel title={`Booking queue (${data?.bookings.length || 0})`}>
-          <BookingTable bookings={data?.bookings || []} onUpdate={mutate} />
-        </AdminPanel>
+        <BookingsTab bookings={data?.bookings || []} onUpdate={mutate} />
+      )}
+
+      {tab === "portfolio" && (
+        <PortfolioManager driveReady={Boolean(data?.system.driveUpload)} onMessage={setMessage} />
       )}
 
       {tab === "logs" && (
@@ -461,8 +467,8 @@ export function AdminConsole() {
             <label className="upload-card">
               <Upload size={18} />
               <span>Replace PDF</span>
-              <small>{data?.system.drive ? "PDF only · up to 3MB" : "Google Drive is not configured"}</small>
-              <input type="file" accept="application/pdf" disabled={!data?.system.drive} onChange={(e) => void uploadAgreement(e.target.files?.[0])} />
+              <small>{data?.system.driveUpload ? "PDF only · up to 3MB" : "Connect the studio Google account first"}</small>
+              <input type="file" accept="application/pdf" disabled={!data?.system.driveUpload} onChange={(e) => void uploadAgreement(e.target.files?.[0])} />
             </label>
           </div>
         </AdminPanel>
@@ -581,6 +587,352 @@ function ConversationList({
   );
 }
 
+interface PortfolioAdminItem {
+  id: string;
+  category: string;
+  title: string;
+  alt: string;
+  image: string;
+  thumb: string;
+}
+
+/**
+ * Convert the selected photo to a compact JPEG before sending it to the API.
+ *
+ * JPEG is intentional here: iPhone/iPad Safari and especially embedded
+ * WebViews (such as the browser opened from Messenger) are much more
+ * predictable with canvas JPEG encoding than with canvas WebP encoding.
+ * Keeping the binary image under 1MB also leaves ample headroom for the
+ * base64/JSON request overhead and Vercel's request-size limit.
+ */
+const MAX_UPLOAD_IMAGE_BYTES = 900_000;
+const MAX_UPLOAD_DIMENSION = 1600;
+
+/**
+ * Decode an image in a way that works across Chrome/Firefox/Safari.
+ *
+ * Safari/WebViews do not all implement createImageBitmap consistently, so an
+ * HTMLImageElement object-URL fallback is retained. The upload is ultimately
+ * re-encoded as JPEG, which is widely supported by iOS browsers.
+ */
+async function decodeImage(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; close?: () => void }> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        close: () => bitmap.close(),
+      };
+    } catch {
+      // Fall through to the object-URL <img> decoder for older Safari/WebViews.
+    }
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("This photo format is not supported by this browser. Please choose a JPEG or PNG photo."));
+      element.src = url;
+    });
+    return {
+      source: image,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      close: () => URL.revokeObjectURL(url),
+    };
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    throw error;
+  }
+}
+
+function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (value) => {
+        if (!value) {
+          reject(new Error("JPEG conversion failed in this browser."));
+          return;
+        }
+        // Some older WebViews can ignore the requested MIME type. Never send
+        // a non-JPEG blob to the API by mistake.
+        if (value.type && value.type !== "image/jpeg") {
+          reject(new Error("This browser could not create a JPEG upload. Please try Safari or choose another photo."));
+          return;
+        }
+        resolve(value);
+      },
+      "image/jpeg",
+      quality,
+    );
+  });
+}
+
+async function fileToUploadImage(file: File): Promise<Blob> {
+  const decoded = await decodeImage(file);
+  let width = decoded.width;
+  let height = decoded.height;
+
+  if (!width || !height) {
+    decoded.close?.();
+    throw new Error("The selected photo could not be decoded.");
+  }
+
+  const scale = Math.min(1, MAX_UPLOAD_DIMENSION / Math.max(width, height));
+  width = Math.max(1, Math.round(width * scale));
+  height = Math.max(1, Math.round(height * scale));
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  if (!ctx) {
+    decoded.close?.();
+    throw new Error("Canvas is not supported in this browser.");
+  }
+
+  try {
+    // Try increasingly smaller quality settings first. If a very detailed
+    // phone photo is still large, also reduce dimensions between passes.
+    const qualities = [0.82, 0.74, 0.66, 0.58, 0.50, 0.42, 0.34, 0.28];
+    for (let pass = 0; pass < 5; pass += 1) {
+      canvas.width = width;
+      canvas.height = height;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(decoded.source, 0, 0, width, height);
+
+      for (const quality of qualities) {
+        const blob = await canvasToJpeg(canvas, quality);
+        if (blob.size <= MAX_UPLOAD_IMAGE_BYTES) {
+          return blob;
+        }
+      }
+
+      // Still too large: shrink the longest edge and try the quality ladder
+      // again. This is more reliable than relying on quality alone for photos
+      // exported by iPhones, which can contain very high detail.
+      const nextLongest = Math.max(640, Math.round(Math.max(width, height) * 0.78));
+      const nextScale = nextLongest / Math.max(width, height);
+      width = Math.max(1, Math.round(width * nextScale));
+      height = Math.max(1, Math.round(height * nextScale));
+    }
+  } finally {
+    decoded.close?.();
+  }
+
+  throw new Error("This photo could not be compressed enough for upload. Please choose another photo.");
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read the image."));
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.readAsDataURL(blob);
+  });
+}
+
+function PortfolioManager({
+  driveReady,
+  onMessage,
+}: {
+  driveReady: boolean;
+  onMessage: (text: string) => void;
+}) {
+  const [items, setItems] = useState<PortfolioAdminItem[]>([]);
+  const [category, setCategory] = useState<(typeof portfolioCategories)[number]>("Wedding");
+  const [caption, setCaption] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api<{ portfolio: PortfolioAdminItem[] }>("/api/portfolio")
+      .then((res) => setItems(res.portfolio || []))
+      .catch(() => setItems([]));
+  }, []);
+  useEffect(() => load(), [load]);
+
+  // Local object URL for the chosen file's preview; revoked on change/unmount.
+  useEffect(() => {
+    if (!file) {
+      setPreview("");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  async function upload() {
+    if (!file) return;
+    setBusy(true);
+    onMessage("");
+    try {
+      const encoded = await fileToUploadImage(file);
+      if (encoded.size > MAX_UPLOAD_IMAGE_BYTES) {
+        throw new Error("Photo could not be compressed below the safe upload size. Please choose another photo.");
+      }
+      const base64 = await blobToBase64(encoded);
+      // Base64 is ~33% larger than the binary image. This leaves comfortable
+      // headroom below the serverless request-body limit.
+      if (base64.length > 1_250_000) {
+        throw new Error("Photo upload is still too large. Please choose another photo.");
+      }
+      await api("/api/admin", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "portfolio.add",
+          category,
+          caption: caption.trim(),
+          alt: caption.trim(),
+          base64,
+        }),
+      });
+      const savedKb = Math.max(0, Math.round((file.size - encoded.size) / 1024));
+      onMessage(`Photo added to ${category}. Saved ~${savedKb}KB as JPEG.`);
+      setFile(null);
+      setCaption("");
+      load();
+    } catch (error) {
+      onMessage((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    setBusy(true);
+    try {
+      await api("/api/admin", { method: "POST", body: JSON.stringify({ action: "portfolio.delete", id }) });
+      onMessage("Photo removed.");
+      setItems((list) => list.filter((x) => x.id !== id));
+    } catch (error) {
+      onMessage((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <AdminPanel title="Add a portfolio photo">
+        <div className="portfolio-upload">
+          <label className="upload-card">
+            {preview ? (
+              <img src={preview} alt="Selected photo preview" className="upload-preview" />
+            ) : (
+              <>
+                <Upload size={18} />
+                <span>Choose a photo</span>
+                <small>{driveReady ? "JPG, PNG, or WebP · automatically converted for upload" : "Google Drive is not configured"}</small>
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={!driveReady || busy}
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+            />
+          </label>
+          <div className="portfolio-fields">
+            <label>
+              Category
+              <select value={category} onChange={(e) => setCategory(e.target.value as typeof category)}>
+                {portfolioCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Caption
+              <input
+                type="text"
+                value={caption}
+                maxLength={120}
+                placeholder="e.g. Beach vows at golden hour"
+                onChange={(e) => setCaption(e.target.value)}
+              />
+            </label>
+            <button
+              className="button button-solid"
+              disabled={!file || !driveReady || busy}
+              onClick={() => void upload()}
+            >
+              {busy ? "Uploading…" : "Upload photo"}
+            </button>
+          </div>
+        </div>
+      </AdminPanel>
+      <AdminPanel title={`Uploaded photos (${items.length})`}>
+        {items.length ? (
+          <div className="portfolio-manage-grid">
+            {items.map((item) => (
+              <figure key={item.id} className="portfolio-manage-card">
+                <img src={item.thumb} alt={item.alt} loading="lazy" />
+                <figcaption>
+                  <span className="portfolio-manage-cat">{item.category}</span>
+                  <strong>{item.title || "(no caption)"}</strong>
+                </figcaption>
+                <button
+                  className="portfolio-manage-del"
+                  disabled={busy}
+                  onClick={() => void remove(item.id)}
+                  aria-label="Delete photo"
+                  title="Delete photo"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </figure>
+            ))}
+          </div>
+        ) : (
+          <p className="admin-empty">No uploaded photos yet. The curated set still shows on the site.</p>
+        )}
+      </AdminPanel>
+    </>
+  );
+}
+
+function BookingsTab({
+  bookings,
+  onUpdate,
+}: {
+  bookings: BookingRecord[];
+  onUpdate: (payload: object) => Promise<boolean>;
+}) {
+  const [showArchive, setShowArchive] = useState(false);
+  const active = bookings.filter((x) => !x.archived);
+  const archived = bookings.filter((x) => x.archived);
+
+  return (
+    <>
+      <AdminPanel title={`Booking queue (${active.length})`}>
+        <BookingTable bookings={active} onUpdate={onUpdate} />
+      </AdminPanel>
+      <div className="archive-panel">
+        <button
+          className="archive-toggle"
+          onClick={() => setShowArchive((v) => !v)}
+          aria-expanded={showArchive}
+        >
+          <Archive size={15} />
+          Archived bookings ({archived.length})
+          <span>{showArchive ? "Hide" : "Show"}</span>
+        </button>
+        {showArchive && (
+          <div className="archive-body">
+            <BookingTable bookings={archived} onUpdate={onUpdate} />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 function BookingTable({
   bookings,
   onUpdate,
@@ -634,6 +986,16 @@ function BookingRow({
         >
           <Flag size={14} />
         </button>
+        {!compact && (
+          <button
+            className="flag"
+            onClick={() => void onUpdate({ action: "booking.update", bookingId: booking.bookingId, archived: !booking.archived })}
+            aria-label={booking.archived ? "Restore booking" : "Archive booking"}
+            title={booking.archived ? "Restore from archive" : "Archive booking"}
+          >
+            {booking.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+          </button>
+        )}
         <select
           value={booking.status}
           onChange={(event) => void onUpdate({ action: "booking.update", bookingId: booking.bookingId, status: event.target.value, notifyClient })}

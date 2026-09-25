@@ -8,6 +8,7 @@ export function Navbar() {
     ["/", "Home"],
     ["/portfolio", "Portfolio"],
     ["/services", "Services"],
+    ["/packages", "Packages"],
     ["/about", "About"],
     ["/contact", "Contact"],
   ];

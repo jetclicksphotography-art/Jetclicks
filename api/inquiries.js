@@ -2,6 +2,7 @@ import { cleanText, id, isEmail, json, now, parseBody } from './_lib/util.js';
 import { addBooking, addLog, getSettings } from './_lib/store.js';
 import { clientIp, rateLimit } from './_lib/auth.js';
 import { sendMail } from './_lib/smtp.js';
+import { emailLayout, logoAttachment } from './_lib/email-template.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
@@ -41,7 +42,8 @@ export default async function handler(req, res) {
       message: cleanText(body.message, 4000),
       agreementAccepted: true,
       agreementId: cleanText(body.agreementId, 300),
-      notes: ''
+      notes: '',
+      archived: false
     };
 
     await addBooking(booking);
@@ -52,8 +54,43 @@ export default async function handler(req, res) {
 
     const clientMail = sendMail({
       to: booking.email,
-      subject: 'JetClicks - inquiry received',
-      text: `Hi ${booking.name},\n\nWe received your JetClicks inquiry for ${booking.date}. The studio will review availability and follow up with next steps.\n\nReference: ${booking.bookingId}\nService: ${booking.service}\nLocation: ${booking.location}\nCoverage: ${booking.coverage}\n\nThank you,\nJetClicks`
+      subject: 'We received your inquiry - JetClicks Photography',
+      text: [
+        `Hi ${booking.name},`,
+        '',
+        `Thank you for your inquiry. We received your request for ${booking.date} and the studio will`,
+        'review availability and follow up within one business day with coverage options and pricing.',
+        '',
+        `Reference: ${booking.bookingId}`,
+        `Service: ${booking.service}`,
+        `Date: ${booking.date}`,
+        `Location: ${booking.location}`,
+        `Coverage: ${booking.coverage}`,
+        '',
+        'You can reply directly to this email if anything needs correcting.',
+        '',
+        'Warm regards,',
+        'JetClicks Photography'
+      ].join('\n'),
+      html: emailLayout({
+        preheader: `Your inquiry for ${booking.date} is with the studio.`,
+        heading: 'Thank you for your inquiry',
+        paragraphs: [
+          `Hi ${booking.name},`,
+          'We have received your request. The studio will review availability and follow up within one business day with coverage options and pricing.',
+          'Here is what we have on file:'
+        ],
+        rows: [
+          ['Reference', booking.bookingId],
+          ['Service', booking.service],
+          ['Date', booking.date],
+          ['Location', booking.location],
+          ['Coverage', booking.coverage],
+          ['Guests', booking.guests]
+        ],
+        footerNote: 'You are receiving this because an inquiry was submitted on the JetClicks website. Reply to this email if anything needs correcting.'
+      }),
+      attachments: [logoAttachment()]
     });
 
     const studioMail = process.env.ADMIN_EMAIL
@@ -79,7 +116,27 @@ export default async function handler(req, res) {
             '',
             'Agreement accepted: yes',
             `Agreement: ${settings.agreementName}`
-          ].join('\n')
+          ].join('\n'),
+          html: emailLayout({
+            preheader: `${booking.service} on ${booking.date} - ${booking.location}`,
+            heading: 'New booking inquiry',
+            paragraphs: [`${booking.name} submitted an inquiry through the website.`],
+            rows: [
+              ['Reference', booking.bookingId],
+              ['Name', booking.name],
+              ['Email', booking.email],
+              ['Phone', booking.phone || 'Not provided'],
+              ['Service', booking.service],
+              ['Date', booking.date],
+              ['Location', booking.location],
+              ['Coverage', booking.coverage],
+              ['Guests', booking.guests || 'Not provided'],
+              ['Message', booking.message || '(none)'],
+              ['Agreement', settings.agreementName]
+            ],
+            footerNote: 'Sent automatically by the JetClicks website. Reply to this email to answer the client directly.'
+          }),
+          attachments: [logoAttachment()]
         })
       : Promise.resolve({ skipped: true, reason: 'ADMIN_EMAIL is not set' });
 

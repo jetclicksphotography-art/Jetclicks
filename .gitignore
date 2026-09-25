@@ -5,3 +5,12 @@ dist
 .env.*
 !.env.example
 .DS_Store
+
+.vercel
+.env*
+
+# Google service account keys - never commit
+*-service-account*.json
+jetclicks-website-*.json
+serviceAccount.json
+client_secret*.json

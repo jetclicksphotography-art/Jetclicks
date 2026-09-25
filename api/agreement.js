@@ -1,5 +1,5 @@
 import { addLog, getSettings, setSetting } from './_lib/store.js';
-import { driveEnabled, uploadPdfToDrive } from './_lib/google.js';
+import { driveUploadEnabled, uploadFileAsUser } from './_lib/google.js';
 import { requireAdmin } from './_lib/auth.js';
 import { cleanText, json, now, parseBody } from './_lib/util.js';
 
@@ -13,8 +13,8 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
     if (!requireAdmin(req, res, json)) return;
 
-    if (!driveEnabled()) {
-      return json(res, 503, { error: 'Google Drive is not configured. Set GOOGLE_SERVICE_ACCOUNT_JSON and GOOGLE_DRIVE_FOLDER_ID to upload a new agreement.' });
+    if (!driveUploadEnabled()) {
+      return json(res, 503, { error: 'Photo/PDF uploads need the studio Google account connected. Set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET and GOOGLE_OAUTH_REFRESH_TOKEN.' });
     }
 
     const body = await parseBody(req);
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     if (buffer.length > 3_000_000) return json(res, 400, { error: 'PDF must be 3MB or smaller.' });
     if (buffer.subarray(0, 5).toString('latin1') !== '%PDF-') return json(res, 400, { error: 'That file is not a valid PDF.' });
 
-    const uploaded = await uploadPdfToDrive({ name, buffer });
+    const uploaded = await uploadFileAsUser({ name, buffer, mimeType: 'application/pdf' });
     if (!uploaded) return json(res, 503, { error: 'Google Drive upload failed.' });
 
     const url = uploaded.publicUrl || uploaded.webViewLink;

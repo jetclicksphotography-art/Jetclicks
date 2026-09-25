@@ -16,8 +16,8 @@ export function About() {
       </section>
       <section className="about-grid">
         <img
-          src="https://images.unsplash.com/photo-1523438885200-e635ba2c371e?auto=format&fit=crop&w=1200&q=85"
-          alt="Photographer working at an event"
+          src="/images/portfolio/wedding/wedding-15.jpg"
+          alt="Bride framed in a flower-covered doorway at the top of the aisle, seen past the guests"
         />
         <div>
           <span className="eyebrow">Our approach</span>
