@@ -12,7 +12,7 @@ npm run dev
 ```
 
 `npm run dev` also serves the `api/` functions through a Vite middleware, so the chat widget,
-the booking form and the studio console all work locally exactly as they do on Vercel.
+the booking form aaaand the studio console all work locally exactly as they do on Vercel.
 
 ## Production build
 
