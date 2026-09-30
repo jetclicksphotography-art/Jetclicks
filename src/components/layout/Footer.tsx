@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { SHOW_PACKAGES } from "../../lib/siteConfig";
 
 export function Footer() {
   return (
@@ -16,7 +17,7 @@ export function Footer() {
         <div>
           <span className="footer-label">Explore</span>
           <Link to="/portfolio">Portfolio</Link>
-          <Link to="/packages">Packages</Link>
+          {SHOW_PACKAGES && <Link to="/packages">Packages</Link>}
           <Link to="/services">Services</Link>
           <Link to="/about">About</Link>
         </div>

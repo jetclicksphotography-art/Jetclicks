@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route } from "react-router-dom";
 import { Home } from "../pages/Home";
 import { Portfolio } from "../pages/Portfolio";
 import { Services } from "../pages/Services";
@@ -10,6 +10,7 @@ import { Privacy } from "../pages/Privacy";
 import { Terms } from "../pages/Terms";
 import { AdminConsole } from "../pages/AdminConsole";
 import { ADMIN_PATH } from "../lib/adminPath";
+import { SHOW_PACKAGES } from "../lib/siteConfig";
 
 export function AppRoutes() {
   return (
@@ -17,7 +18,10 @@ export function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/portfolio" element={<Portfolio />} />
       <Route path="/services" element={<Services />} />
-      <Route path="/packages" element={<Packages />} />
+      <Route
+        path="/packages"
+        element={SHOW_PACKAGES ? <Packages /> : <Navigate to="/services" replace />}
+      />
       <Route path="/booking" element={<Booking />} />
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />

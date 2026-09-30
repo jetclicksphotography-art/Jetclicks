@@ -597,132 +597,62 @@ interface PortfolioAdminItem {
 }
 
 /**
- * Convert the selected photo to a compact JPEG before sending it to the API.
+ * Convert the selected photo to a WebP small enough for the Vercel
+ * serverless request-body limit.
  *
- * JPEG is intentional here: iPhone/iPad Safari and especially embedded
- * WebViews (such as the browser opened from Messenger) are much more
- * predictable with canvas JPEG encoding than with canvas WebP encoding.
- * Keeping the binary image under 1MB also leaves ample headroom for the
- * base64/JSON request overhead and Vercel's request-size limit.
+ * The API receives the image as base64 inside JSON, so the encoded request
+ * is larger than the WebP itself (~4/3 the size). Keep the actual image well
+ * below the platform limit instead of allowing occasional 413 responses.
  */
-const MAX_UPLOAD_IMAGE_BYTES = 900_000;
-const MAX_UPLOAD_DIMENSION = 1600;
+const MAX_UPLOAD_WEBP_BYTES = 2_800_000;
+const MAX_UPLOAD_DIMENSION = 2200;
 
-/**
- * Decode an image in a way that works across Chrome/Firefox/Safari.
- *
- * Safari/WebViews do not all implement createImageBitmap consistently, so an
- * HTMLImageElement object-URL fallback is retained. The upload is ultimately
- * re-encoded as JPEG, which is widely supported by iOS browsers.
- */
-async function decodeImage(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; close?: () => void }> {
-  if (typeof createImageBitmap === "function") {
-    try {
-      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-      return {
-        source: bitmap,
-        width: bitmap.width,
-        height: bitmap.height,
-        close: () => bitmap.close(),
-      };
-    } catch {
-      // Fall through to the object-URL <img> decoder for older Safari/WebViews.
-    }
+async function fileToWebp(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  let width = bitmap.width;
+  let height = bitmap.height;
+  const longest = Math.max(width, height);
+
+  if (longest > MAX_UPLOAD_DIMENSION) {
+    const scale = MAX_UPLOAD_DIMENSION / longest;
+    width = Math.max(1, Math.round(width * scale));
+    height = Math.max(1, Math.round(height * scale));
   }
-
-  const url = URL.createObjectURL(file);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const element = new Image();
-      element.onload = () => resolve(element);
-      element.onerror = () => reject(new Error("This photo format is not supported by this browser. Please choose a JPEG or PNG photo."));
-      element.src = url;
-    });
-    return {
-      source: image,
-      width: image.naturalWidth,
-      height: image.naturalHeight,
-      close: () => URL.revokeObjectURL(url),
-    };
-  } catch (error) {
-    URL.revokeObjectURL(url);
-    throw error;
-  }
-}
-
-function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (value) => {
-        if (!value) {
-          reject(new Error("JPEG conversion failed in this browser."));
-          return;
-        }
-        // Some older WebViews can ignore the requested MIME type. Never send
-        // a non-JPEG blob to the API by mistake.
-        if (value.type && value.type !== "image/jpeg") {
-          reject(new Error("This browser could not create a JPEG upload. Please try Safari or choose another photo."));
-          return;
-        }
-        resolve(value);
-      },
-      "image/jpeg",
-      quality,
-    );
-  });
-}
-
-async function fileToUploadImage(file: File): Promise<Blob> {
-  const decoded = await decodeImage(file);
-  let width = decoded.width;
-  let height = decoded.height;
-
-  if (!width || !height) {
-    decoded.close?.();
-    throw new Error("The selected photo could not be decoded.");
-  }
-
-  const scale = Math.min(1, MAX_UPLOAD_DIMENSION / Math.max(width, height));
-  width = Math.max(1, Math.round(width * scale));
-  height = Math.max(1, Math.round(height * scale));
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) {
-    decoded.close?.();
+    bitmap.close();
     throw new Error("Canvas is not supported in this browser.");
   }
 
-  try {
-    // Try increasingly smaller quality settings first. If a very detailed
-    // phone photo is still large, also reduce dimensions between passes.
-    const qualities = [0.82, 0.74, 0.66, 0.58, 0.50, 0.42, 0.34, 0.28];
-    for (let pass = 0; pass < 5; pass += 1) {
-      canvas.width = width;
-      canvas.height = height;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(decoded.source, 0, 0, width, height);
+  // A few controlled compression passes handle photographs that remain
+  // unusually large after the first conversion.
+  for (const quality of [0.82, 0.74, 0.66, 0.58, 0.50]) {
+    canvas.width = width;
+    canvas.height = height;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(bitmap, 0, 0, width, height);
 
-      for (const quality of qualities) {
-        const blob = await canvasToJpeg(canvas, quality);
-        if (blob.size <= MAX_UPLOAD_IMAGE_BYTES) {
-          return blob;
-        }
-      }
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (value) => (value ? resolve(value) : reject(new Error("WebP conversion failed."))),
+        "image/webp",
+        quality,
+      ),
+    );
 
-      // Still too large: shrink the longest edge and try the quality ladder
-      // again. This is more reliable than relying on quality alone for photos
-      // exported by iPhones, which can contain very high detail.
-      const nextLongest = Math.max(640, Math.round(Math.max(width, height) * 0.78));
-      const nextScale = nextLongest / Math.max(width, height);
-      width = Math.max(1, Math.round(width * nextScale));
-      height = Math.max(1, Math.round(height * nextScale));
+    if (blob.size <= MAX_UPLOAD_WEBP_BYTES) {
+      bitmap.close();
+      return blob;
     }
-  } finally {
-    decoded.close?.();
+
+    // If quality reduction is not enough, reduce dimensions and try again.
+    width = Math.max(1, Math.round(width * 0.85));
+    height = Math.max(1, Math.round(height * 0.85));
   }
 
+  bitmap.close();
   throw new Error("This photo could not be compressed enough for upload. Please choose another photo.");
 }
 
@@ -772,14 +702,14 @@ function PortfolioManager({
     setBusy(true);
     onMessage("");
     try {
-      const encoded = await fileToUploadImage(file);
-      if (encoded.size > MAX_UPLOAD_IMAGE_BYTES) {
+      const webp = await fileToWebp(file);
+      if (webp.size > MAX_UPLOAD_WEBP_BYTES) {
         throw new Error("Photo could not be compressed below the safe upload size. Please choose another photo.");
       }
-      const base64 = await blobToBase64(encoded);
-      // Base64 is ~33% larger than the binary image. This leaves comfortable
-      // headroom below the serverless request-body limit.
-      if (base64.length > 1_250_000) {
+      const base64 = await blobToBase64(webp);
+      // Keep the JSON request comfortably below Vercel's request-body limit.
+      // A base64 payload is ~33% larger than the binary image.
+      if (base64.length > 3_800_000) {
         throw new Error("Photo upload is still too large. Please choose another photo.");
       }
       await api("/api/admin", {
@@ -792,8 +722,8 @@ function PortfolioManager({
           base64,
         }),
       });
-      const savedKb = Math.max(0, Math.round((file.size - encoded.size) / 1024));
-      onMessage(`Photo added to ${category}. Saved ~${savedKb}KB as JPEG.`);
+      const savedKb = Math.round((file.size - webp.size) / 1024);
+      onMessage(`Photo added to ${category}. Saved ~${savedKb}KB as WebP.`);
       setFile(null);
       setCaption("");
       load();
@@ -828,12 +758,12 @@ function PortfolioManager({
               <>
                 <Upload size={18} />
                 <span>Choose a photo</span>
-                <small>{driveReady ? "JPG, PNG, or WebP · automatically converted for upload" : "Google Drive is not configured"}</small>
+                <small>{driveReady ? "JPG, PNG, or WebP · automatically compressed for upload" : "Google Drive is not configured"}</small>
               </>
             )}
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               disabled={!driveReady || busy}
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />

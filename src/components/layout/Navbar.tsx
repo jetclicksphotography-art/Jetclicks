@@ -1,6 +1,7 @@
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { SHOW_PACKAGES } from "../../lib/siteConfig";
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
@@ -8,7 +9,7 @@ export function Navbar() {
     ["/", "Home"],
     ["/portfolio", "Portfolio"],
     ["/services", "Services"],
-    ["/packages", "Packages"],
+    ...(SHOW_PACKAGES ? [["/packages", "Packages"]] : []),
     ["/about", "About"],
     ["/contact", "Contact"],
   ];
