@@ -93,6 +93,7 @@ function publicView(conversation) {
     status: conversation.status,
     name: conversation.name,
     email: conversation.email,
+    phone: conversation.phone || "",
     messages: conversation.messages || []
   };
 }
@@ -129,6 +130,7 @@ export default async function handler(req, res) {
         status: 'open',
         name: '',
         email: '',
+        phone: '',
         source: 'website-chat',
         unread: true,
         messages: []
@@ -137,8 +139,10 @@ export default async function handler(req, res) {
 
     const name = cleanText(body.name, 120);
     const email = cleanText(body.email, 160);
+    const phone = cleanText(body.phone, 40);
     if (name) conversation.name = name;
     if (email && isEmail(email)) conversation.email = email;
+    if (phone) conversation.phone = phone;
 
     conversation.messages = (conversation.messages || []).slice(-100);
     conversation.messages.push({ id: id('msg'), at: now(), from: 'client', text });
@@ -174,7 +178,7 @@ export default async function handler(req, res) {
       action: handoff ? 'conversation.handoff' : 'conversation.message',
       entityType: 'conversation',
       entityId: conversation.conversationId,
-      metadataJson: JSON.stringify({ name: conversation.name, email: conversation.email, handoff })
+      metadataJson: JSON.stringify({ name: conversation.name, email: conversation.email, phone: conversation.phone, handoff })
     });
 
     // A handoff is the one chat event worth interrupting the studio for.
@@ -189,6 +193,7 @@ export default async function handler(req, res) {
           '',
           `Name: ${conversation.name || 'Not provided'}`,
           `Email: ${conversation.email || 'Not provided'}`,
+          `Phone: ${conversation.phone || 'Not provided'}`,
           `Conversation: ${conversation.conversationId}`,
           '',
           'Last message:',

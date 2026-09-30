@@ -8,7 +8,7 @@ export function Footer() {
         <div>
           <Link to="/" className="footer-brand-lockup" aria-label="JetClicks home">
             <span className="footer-brand-mark">
-              <img src="/images/jetclicks-logo.png" alt="" />
+              <img src="/images/jetclicks-logo.webp" alt="" />
             </span>
             <span className="footer-brand">JetClicks</span>
           </Link>

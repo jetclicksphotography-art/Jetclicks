@@ -80,6 +80,7 @@ export interface Conversation {
   status: "open" | "needs-human";
   name: string;
   email: string;
+  phone: string;
   source: string;
   unread: boolean;
   messages: ChatMessage[];

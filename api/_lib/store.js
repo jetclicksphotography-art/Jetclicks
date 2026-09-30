@@ -86,7 +86,7 @@ function normalizeConversation(conversation) {
     : safeJson(conversation.messagesJson, []);
   const copy = { ...conversation };
   delete copy.messagesJson;
-  return { ...copy, unread: truthy(conversation.unread), messages: Array.isArray(parsed) ? parsed : [] };
+  return { ...copy, name: String(conversation.name || ''), email: String(conversation.email || ''), phone: String(conversation.phone || ''), unread: truthy(conversation.unread), messages: Array.isArray(parsed) ? parsed : [] };
 }
 
 export async function getState() {

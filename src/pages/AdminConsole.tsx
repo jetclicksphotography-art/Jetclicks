@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArchiveRestore, Flag, LogOut, Mail, MessageSquare, RefreshCw, Send, Trash2, Upload } from "lucide-react";
 import type { AdminLog, BookingRecord, Conversation } from "../types";
+import { ChatMessageText } from "../components/chat/ChatMessageText";
 import { ApiError, api } from "../lib/api";
 
 const bookingStatuses: BookingRecord["status"][] = ["new", "confirmed", "ongoing", "finished", "cancelled"];
@@ -379,7 +380,7 @@ export function AdminConsole() {
                   <div>
                     <strong>{selected.name || "Website visitor"}</strong>
                     <span>
-                      {selected.email || "No email provided"} · {selected.status === "needs-human" ? "waiting for the studio" : "assistant handled"}
+                      {selected.email || "No email provided"}{selected.phone ? ` · ${selected.phone}` : ""} · {selected.status === "needs-human" ? "waiting for the studio" : "assistant handled"}
                     </span>
                     <small>
                       First contact {when(selected.createdAt)} · last activity {when(selected.lastMessageAt || selected.updatedAt)} ·{" "}
@@ -402,28 +403,39 @@ export function AdminConsole() {
                   {selected.messages.map((m) => (
                     <div key={m.id} className={`admin-thread-bubble ${m.from}`}>
                       <span>{m.from === "client" ? selected.name || "visitor" : m.from} · {when(m.at)}</span>
-                      <p>{m.text}</p>
+                      <p><ChatMessageText text={m.text} /></p>
                     </div>
                   ))}
                   {!selected.messages.length && <p className="admin-empty">No messages in this thread yet.</p>}
                 </div>
                 <div className="admin-reply">
-                  <textarea
-                    value={reply}
-                    onChange={(e) => setReply(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void sendReply();
-                    }}
-                    placeholder={
-                      selected.email
-                        ? `Reply to ${selected.name || "this visitor"} - a copy is emailed to ${selected.email}`
-                        : "Reply appears in the visitor's chat window (no email on file)"
-                    }
-                    rows={3}
-                  />
-                  <button onClick={() => void sendReply()} disabled={!reply.trim()}>
-                    <Send size={15} /> Send
-                  </button>
+                  <div className="admin-reply-tools">
+                    <button
+                      type="button"
+                      className="admin-insert-link"
+                      onClick={() => setReply((current) => current.includes("/packages") ? current : `${current}${current.trim() ? "\n" : ""}/packages`)}
+                    >
+                      Insert packages link
+                    </button>
+                  </div>
+                  <div className="admin-reply-row">
+                    <textarea
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void sendReply();
+                      }}
+                      placeholder={
+                        selected.email
+                          ? `Reply to ${selected.name || "this visitor"} - a copy is emailed to ${selected.email}`
+                          : "Reply appears in the visitor's chat window (no email on file)"
+                      }
+                      rows={3}
+                    />
+                    <button onClick={() => void sendReply()} disabled={!reply.trim()}>
+                      <Send size={15} /> Send
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (
@@ -574,7 +586,7 @@ function ConversationList({
             {conversation.name || "Website visitor"}
             {conversation.unread && <i className="dot" aria-label="unread" />}
           </strong>
-          <span>{conversation.email || "No email"}</span>
+          <span>{[conversation.email, conversation.phone].filter(Boolean).join(" · ") || "No contact details"}</span>
           <em>{conversation.lastMessagePreview || "No messages yet"}</em>
           <small>
             {conversation.status === "needs-human" ? "waiting for studio" : "assistant"} ·{" "}

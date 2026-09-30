@@ -54,11 +54,13 @@ The console has six tabs:
 
 ### Chatbot inbox
 
-Every visitor conversation is recorded with name, email (both optional), source, first contact,
+Every visitor conversation is recorded with name, email, and phone (all optional), source, first contact,
 last activity, visitor message count, and an unread marker. Replies typed in the console appear
 in the visitor's chat window within about 5 seconds, and are also emailed to the visitor when an
 address is on file. "Talk to JetClicks" flags the conversation as `needs-human` and, when SMTP
 and `ADMIN_EMAIL` are configured, emails the studio.
+
+Studio replies containing `/packages` (or the full JetClicks Packages URL) render as a clickable link for the visitor. The inbox also has an "Insert packages link" helper for the studio.
 
 `Close & delete` removes the active conversation record after an inline confirmation. The audit
 log keeps a closure entry without the transcript.

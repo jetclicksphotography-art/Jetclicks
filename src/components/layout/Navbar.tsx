@@ -19,7 +19,7 @@ export function Navbar() {
       <div className="nav-wrap">
         <Link to="/" className="brand" onClick={() => setOpen(false)} aria-label="JetClicks home">
           <span className="brand-mark">
-            <img src="/images/jetclicks-logo.png" alt="" />
+            <img src="/images/jetclicks-logo.webp" alt="" />
           </span>
           <span className="brand-name">JetClicks</span>
         </Link>

@@ -2,6 +2,7 @@ import { MessageCircle, Send, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage } from "../../types";
 import { api } from "../../lib/api";
+import { ChatMessageText } from "./ChatMessageText";
 
 const defaultSuggestions = ["Check availability", "Ask about packages", "How booking works", "Talk to JetClicks"];
 
@@ -13,7 +14,7 @@ const WELCOME: ChatMessage = {
 };
 
 interface ChatResponse {
-  conversation: { conversationId: string; status: string; messages: ChatMessage[] } | null;
+  conversation: { conversationId: string; status: string; name?: string; email?: string; phone?: string; messages: ChatMessage[] } | null;
   reply?: { text: string; suggestions: string[] };
 }
 
@@ -40,6 +41,7 @@ export function ChatWidget() {
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState(() => readStorage("jetclicks-chat-name"));
   const [email, setEmail] = useState(() => readStorage("jetclicks-chat-email"));
+  const [phone, setPhone] = useState(() => readStorage("jetclicks-chat-phone"));
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [suggestions, setSuggestions] = useState(defaultSuggestions);
   const [offline, setOffline] = useState(false);
@@ -123,9 +125,10 @@ export function ChatWidget() {
     try {
       writeStorage("jetclicks-chat-name", name.trim());
       writeStorage("jetclicks-chat-email", email.trim());
+      writeStorage("jetclicks-chat-phone", phone.trim());
       const result = await api<ChatResponse>("/api/chat", {
         method: "POST",
-        body: JSON.stringify({ conversationId, text: value, name: name.trim(), email: email.trim(), handoff }),
+        body: JSON.stringify({ conversationId, text: value, name: name.trim(), email: email.trim(), phone: phone.trim(), handoff }),
       });
       setOffline(false);
       if (result.conversation) {
@@ -172,15 +175,38 @@ export function ChatWidget() {
           {offline && <div className="chat-banner warn">Connection problem - messages may not be reaching the studio.</div>}
 
           <div className="chat-profile">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" />
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (optional)" type="email" />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name (optional)"
+              autoComplete="name"
+              maxLength={120}
+            />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email (optional)"
+              type="email"
+              autoComplete="email"
+              maxLength={160}
+            />
+            <input
+              className="chat-phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Phone (optional)"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              maxLength={40}
+            />
           </div>
 
           <div className="chat-messages" ref={threadRef} aria-live="polite">
             {visibleMessages.map((message) => (
               <div className={`chat-bubble ${message.from}`} key={message.id}>
                 {message.from === "admin" && <span className="chat-from">JetClicks studio</span>}
-                {message.text}
+                <ChatMessageText text={message.text} />
               </div>
             ))}
             {busy && <div className="chat-bubble bot typing"><span /><span /><span /></div>}

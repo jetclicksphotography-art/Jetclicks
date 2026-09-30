@@ -8,11 +8,11 @@ import { PortfolioModal } from "../components/portfolio/PortfolioModal";
 
 /** Hero slides cross-fade through the studio's strongest frames. */
 const heroSlides = [
-  { image: "/images/portfolio/wedding/wedding-10.jpg", label: "Weddings", alt: "Bride and groom facing each other at a gilded church altar surrounded by white flowers" },
-  { image: "/images/portfolio/prenup/prenup-01.jpg", label: "Prenup", alt: "Couple holding hands beneath a tree with limestone cliffs behind them" },
-  { image: "/images/portfolio/proposal/proposal-06.jpg", label: "Proposals", alt: "Couple embracing on an empty sandbar as the sun sets over the water" },
-  { image: "/images/portfolio/wedding/wedding-05.jpg", label: "Weddings", alt: "Bride with a long veil and groom in cream embracing on a palm-lined beach" },
-  { image: "/images/portfolio/wedding/wedding-15.jpg", label: "Weddings", alt: "Bride framed in a flower-covered doorway at the top of the aisle, seen past the guests" },
+  { image: "/images/portfolio/wedding/wedding-10.webp", label: "Weddings", alt: "Bride and groom facing each other at a gilded church altar surrounded by white flowers" },
+  { image: "/images/portfolio/prenup/prenup-01.webp", label: "Prenup", alt: "Couple holding hands beneath a tree with limestone cliffs behind them" },
+  { image: "/images/portfolio/proposal/proposal-06.webp", label: "Proposals", alt: "Couple embracing on an empty sandbar as the sun sets over the water" },
+  { image: "/images/portfolio/wedding/wedding-05.webp", label: "Weddings", alt: "Bride with a long veil and groom in cream embracing on a palm-lined beach" },
+  { image: "/images/portfolio/wedding/wedding-15.webp", label: "Weddings", alt: "Bride framed in a flower-covered doorway at the top of the aisle, seen past the guests" },
 ];
 
 const HERO_INTERVAL = 120_000; // two minutes
@@ -32,10 +32,12 @@ function HeroImage() {
         <img
           key={slide.image}
           className={`hero-slide ${i === index ? "is-active" : ""}`}
-          src={slide.image}
+          src={i === index ? slide.image : undefined}
           alt={i === 0 ? slide.alt : ""}
           aria-hidden={i === index ? undefined : true}
           loading={i === 0 ? "eager" : "lazy"}
+          decoding="async"
+          fetchPriority={i === 0 ? "high" : "low"}
         />
       ))}
       <span className="image-note">

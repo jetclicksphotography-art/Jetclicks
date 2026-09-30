@@ -33,7 +33,7 @@ export function Privacy() {
           </li>
           <li>
             <strong>Chat messages</strong> — anything you type into the on-site
-            chat, along with a name and email if you provide them.
+            chat, along with your name, email, and phone number if you provide them.
           </li>
           <li>
             <strong>Agreement acceptance</strong> — a record that you reviewed and
@@ -42,8 +42,10 @@ export function Privacy() {
         </ul>
         <p>
           We do not collect payment card details on this website, and we do not
-          use advertising or cross-site tracking cookies. The site stores only a
-          small identifier in your browser so an ongoing chat can continue.
+          use advertising or cross-site tracking cookies. The site stores an
+          identifier for an ongoing chat and, if you provide them, your chat name,
+          email, and phone number in your browser so the conversation can continue
+          and those fields can be prefilled.
         </p>
 
         <h2>Why we collect it</h2>

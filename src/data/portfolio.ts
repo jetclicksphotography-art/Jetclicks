@@ -23,8 +23,8 @@ const item = (
   id,
   category,
   title,
-  image: `/images/portfolio/${file}.jpg`,
-  thumb: `/images/portfolio/${file}-thumb.jpg`,
+  image: `/images/portfolio/${file}.webp`,
+  thumb: `/images/portfolio/${file}-thumb.webp`,
   alt,
 });
 
@@ -98,8 +98,8 @@ const film = (
   id,
   category: "Films",
   title,
-  image: `/images/portfolio/${poster}.jpg`,
-  thumb: `/images/portfolio/${poster}-thumb.jpg`,
+  image: `/images/portfolio/${poster}.webp`,
+  thumb: `/images/portfolio/${poster}-thumb.webp`,
   alt,
   videoId,
   videoHost,
