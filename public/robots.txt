@@ -1,3 +1,4 @@
 User-agent: *
 Disallow: /studio-console
 Disallow: /api/
+Sitemap: https://www.jetclicks.photography/sitemap.xml

@@ -1,5 +1,5 @@
 import { ArrowUpRight, Check } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { packageCategories, packages, peso } from "../data/packages";
 import type { PackageCategory, PackageItem } from "../types";
@@ -57,6 +57,38 @@ function PackageCard({ item }: { item: PackageItem }) {
 
 export function Packages() {
   const [active, setActive] = useState<PackageCategory | "All">("All");
+
+  useEffect(() => {
+    document.title = "Packages & Pricing — JetClicks Photography";
+
+    const description =
+      "View JetClicks Photography packages, coverage options, pricing, deliverables, and booking information.";
+
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "description";
+      document.head.appendChild(meta);
+    }
+    meta.content = description;
+
+    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = `${window.location.origin}/packages`;
+
+    return () => {
+      document.title = "JetClicks — Photography";
+      if (meta) {
+        meta.content =
+          "JetClicks photography portfolio, services, and online inquiry booking.";
+      }
+      canonical?.remove();
+    };
+  }, []);
   const shown = useMemo(
     () => (active === "All" ? packages : packages.filter((p) => p.category === active)),
     [active],
