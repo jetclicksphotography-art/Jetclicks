@@ -1,5 +1,5 @@
 import { addConversation, addLog, getConversation, updateConversation } from './_lib/store.js';
-import { cleanText, id, isEmail, json, now, parseBody, queryParam } from './_lib/util.js';
+import { cleanText, id, isEmail, isPhone, json, now, parseBody, queryParam } from './_lib/util.js';
 import { clientIp, rateLimit } from './_lib/auth.js';
 import { sendMail, smtpConfigured } from './_lib/smtp.js';
 
@@ -140,9 +140,19 @@ export default async function handler(req, res) {
     const name = cleanText(body.name, 120);
     const email = cleanText(body.email, 160);
     const phone = cleanText(body.phone, 40);
-    if (name) conversation.name = name;
-    if (email && isEmail(email)) conversation.email = email;
-    if (phone) conversation.phone = phone;
+
+    // A visitor must have all three contact details before any chat message
+    // is accepted. Existing saved details may be reused for an open thread.
+    const finalName = name || String(conversation.name || '').trim();
+    const finalEmail = email || String(conversation.email || '').trim();
+    const finalPhone = phone || String(conversation.phone || '').trim();
+    if (!finalName) return json(res, 400, { error: 'Your name is required before you can send a message.' });
+    if (!finalEmail || !isEmail(finalEmail)) return json(res, 400, { error: 'A valid email address is required before you can send a message.' });
+    if (!finalPhone || !isPhone(finalPhone)) return json(res, 400, { error: 'A valid phone number is required before you can send a message.' });
+
+    conversation.name = finalName;
+    conversation.email = finalEmail;
+    conversation.phone = finalPhone;
 
     conversation.messages = (conversation.messages || []).slice(-100);
     conversation.messages.push({ id: id('msg'), at: now(), from: 'client', text });

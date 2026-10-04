@@ -63,6 +63,7 @@ export const portfolio: PortfolioItem[] = [
   item("w13", "Wedding", "wedding/wedding-13", "Quiet moment", "Bride in a lace veil seated on the bed of a deep blue hotel room"),
   item("b5", "Birthdays", "birthdays/birthdays-05", "Christening day", "Baby being christened in her mother's arms as water is poured at the font"),
   item("w4", "Wedding", "wedding/wedding-04", "Portrait in blue", "Bride in an ivory beaded gown against a deep blue curtain"),
+  item("pn4", "Prenup", "prenup/prenup-04", "Kiss on cheek", "After a YES a warmth kiss")
 ];
 
 /** Hand-picked lead images for the home page grid. */
@@ -70,7 +71,7 @@ export const featured: PortfolioItem[] = [
   "w10",
   "pr1",
   "w5",
-  "b1",
+  "pn4",
 ].map((id) => portfolio.find((x) => x.id === id)!);
 
 /**

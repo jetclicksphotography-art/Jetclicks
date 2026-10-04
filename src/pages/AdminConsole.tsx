@@ -22,11 +22,26 @@ interface SystemInfo {
   serverTime: string;
 }
 
+interface HomeMessageTemplate {
+  id: string;
+  label: string;
+  text: string;
+}
+
+interface HomeMessageState {
+  mode: "default" | "template" | "custom";
+  templateId: string;
+  customText: string;
+  activeText: string;
+  templates: HomeMessageTemplate[];
+}
+
 interface AdminResponse {
   bookings: BookingRecord[];
   conversations: Conversation[];
   logs: AdminLog[];
   settings: { agreementName: string; agreementUrl: string };
+  homeMessage: HomeMessageState;
   system: SystemInfo;
 }
 
@@ -335,6 +350,10 @@ export function AdminConsole() {
 
       {tab === "dashboard" && (
         <>
+          <HomeMessagePanel
+            value={data?.homeMessage}
+            onSave={mutate}
+          />
           <section className="admin-stats">
             <Stat label="New inquiries" value={counts.newCount} />
             <Stat label="Ongoing" value={counts.ongoing} />
@@ -488,6 +507,126 @@ export function AdminConsole() {
 
       {tab === "system" && <SystemPanel system={data?.system} onMessage={setMessage} />}
     </main>
+  );
+}
+
+function HomeMessagePanel({
+  value,
+  onSave,
+}: {
+  value?: HomeMessageState;
+  onSave: (payload: object) => Promise<boolean>;
+}) {
+  const [mode, setMode] = useState<HomeMessageState["mode"]>("default");
+  const [templateId, setTemplateId] = useState("message-1");
+  const [customText, setCustomText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!value) return;
+    setMode(value.mode);
+    setTemplateId(value.templateId || "message-1");
+    setCustomText(value.customText || "");
+  }, [value?.mode, value?.templateId, value?.customText]);
+
+  async function save(next?: { mode: HomeMessageState["mode"]; templateId: string; customText: string }) {
+    const payload = next || { mode, templateId, customText };
+    setSaving(true);
+    try {
+      return await onSave({
+        action: "home-message.update",
+        ...payload,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resetToOriginal() {
+    const ok = await save({ mode: "default", templateId: "message-1", customText: "" });
+    if (!ok) return;
+    setMode("default");
+    setTemplateId("message-1");
+    setCustomText("");
+  }
+
+  const selectedTemplate = value?.templates.find((item) => item.id === templateId);
+  const preview =
+    mode === "custom"
+      ? customText.trim() || "Write your own paragraph below."
+      : mode === "template"
+        ? selectedTemplate?.text || "Choose a template."
+        : value?.activeText || "The bundled default Home paragraph will be used.";
+
+  return (
+    <AdminPanel title="Home page message">
+      <div className="home-message-admin">
+        <div className="home-message-intro">
+          <span className="eyebrow">Supporting paragraph only</span>
+          <p>Choose a ready-made message, write your own, or restore the original paragraph. The large Home page title stays unchanged.</p>
+        </div>
+
+        <div className="home-message-mode">
+          <label>
+            <span>Message source</span>
+            <select value={mode} onChange={(event) => setMode(event.target.value as HomeMessageState["mode"])}>
+              <option value="default">Use original message</option>
+              <option value="template">Choose a template</option>
+              <option value="custom">Write manually</option>
+            </select>
+          </label>
+        </div>
+
+        {mode === "template" && (
+          <div className="home-message-templates" aria-label="Home message templates">
+            {value?.templates.map((template) => (
+              <button
+                type="button"
+                key={template.id}
+                className={template.id === templateId ? "active" : ""}
+                onClick={() => setTemplateId(template.id)}
+              >
+                <strong>{template.label}</strong>
+                <span>{template.text}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {mode === "custom" && (
+          <label className="home-message-custom">
+            <span>Your Home page paragraph</span>
+            <textarea
+              value={customText}
+              onChange={(event) => setCustomText(event.target.value)}
+              maxLength={1400}
+              rows={5}
+              placeholder="Write the paragraph you want visitors to see under the main title."
+            />
+            <small>{customText.length}/1400</small>
+          </label>
+        )}
+
+        <div className="home-message-preview">
+          <span className="eyebrow">Preview</span>
+          <p>{preview}</p>
+        </div>
+
+        <div className="home-message-actions">
+          <button className="button button-solid" type="button" onClick={() => void save()} disabled={saving || (mode === "custom" && !customText.trim()) || (mode === "template" && !selectedTemplate)}>
+            {saving ? "Saving..." : "Save Home message"}
+          </button>
+          <button
+            className="admin-refresh"
+            type="button"
+            disabled={saving}
+            onClick={() => void resetToOriginal()}
+          >
+            Reset to original
+          </button>
+        </div>
+      </div>
+    </AdminPanel>
   );
 }
 

@@ -46,6 +46,12 @@ export function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value || '').trim());
 }
 
+export function isPhone(value) {
+  const phone = String(value || '').trim();
+  const digits = (phone.match(/\d/g) || []).length;
+  return digits >= 7 && digits <= 20 && /^[+\d][\d\s().-]{5,38}$/.test(phone);
+}
+
 /** Vercel populates req.query; the local dev bridge may not. */
 export function queryParam(req, key) {
   if (req.query && req.query[key] !== undefined) {

@@ -5,6 +5,8 @@ import { categories, featured, films } from "../data/portfolio";
 import { PortfolioCard } from "../components/portfolio/PortfolioCard";
 import { useEffect, useState } from "react";
 import { PortfolioModal } from "../components/portfolio/PortfolioModal";
+import { api } from "../lib/api";
+import { DEFAULT_HOME_MESSAGE } from "../data/homeMessages";
 
 /** Hero slides cross-fade through the studio's strongest frames. */
 const heroSlides = [
@@ -50,7 +52,22 @@ function HeroImage() {
 export function Home() {
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedFilm, setSelectedFilm] = useState<number | null>(null);
+  const [homeMessage, setHomeMessage] = useState(DEFAULT_HOME_MESSAGE);
   const homeFilms = films.slice(0, 4);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<{ homeMessage?: string }>("/api/config")
+      .then((config) => {
+        if (!cancelled && config.homeMessage?.trim()) setHomeMessage(config.homeMessage.trim());
+      })
+      .catch(() => {
+        // Keep the bundled default when the public config is temporarily unavailable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   return (
     <main>
       <section className="hero">
@@ -59,11 +76,7 @@ export function Home() {
           <h1>
             Images that hold onto <i>the feeling.</i>
           </h1>
-          <p>
-            Honest, considered photography for weddings, people, events, and
-            brands. We focus on the moments you'll want to remember—not just the
-            ones that look good on a screen.
-          </p>
+          <p>{homeMessage}</p>
           <div className="hero-actions">
             <Button to="/portfolio">Explore the work</Button>
             <Button to="/booking" variant="outline">

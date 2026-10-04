@@ -1,8 +1,9 @@
-import { addLog, addPortfolioItem, deleteConversation, deletePortfolioItem, getPortfolio, getState, storageMode, updateBooking, updateConversation } from './_lib/store.js';
+import { addLog, addPortfolioItem, deleteConversation, deletePortfolioItem, getPortfolio, getState, setSetting, storageMode, updateBooking, updateConversation } from './_lib/store.js';
 import { sendMail, smtpConfigured, smtpSettings, verifySmtp } from './_lib/smtp.js';
 import { deleteFileAsUser, driveEnabled, driveUploadEnabled, uploadFileAsUser } from './_lib/google.js';
 import { requireAdmin } from './_lib/auth.js';
 import { cleanText, id, isEmail, json, now, parseBody } from './_lib/util.js';
+import { homeMessageResponse, parseHomeMessageConfig } from './_lib/home-messages.js';
 
 const BOOKING_STATUSES = ['new', 'confirmed', 'ongoing', 'finished', 'cancelled'];
 const PORTFOLIO_CATEGORIES = ['Wedding', 'Prenup', 'Proposal', 'Birthdays', 'Portrait', 'Island tour', 'Family', 'Drones', 'Corporate', 'Ceremony'];
@@ -35,6 +36,7 @@ export default async function handler(req, res) {
         conversations: state.conversations.map(summarize),
         logs: state.logs.slice(0, 200),
         settings: state.settings,
+        homeMessage: homeMessageResponse(state.settings),
         system: {
           storage: storageMode(),
           drive: driveEnabled(),
@@ -53,6 +55,46 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
     const body = await parseBody(req);
     const action = cleanText(body.action, 40);
+
+    if (action === 'home-message.update') {
+      const mode = cleanText(body.mode, 20);
+      const templateId = cleanText(body.templateId, 40);
+      const customText = cleanText(body.customText, 1400);
+
+      if (!['default', 'template', 'custom'].includes(mode)) {
+        return json(res, 400, { error: 'Choose a valid Home message mode.' });
+      }
+
+      if (mode === 'template' && !templateId) {
+        return json(res, 400, { error: 'Choose a Home message template.' });
+      }
+      if (mode === 'custom' && !customText) {
+        return json(res, 400, { error: 'Write a Home page paragraph or choose a template.' });
+      }
+
+      const template = homeMessageResponse({}).templates.find((item) => item.id === templateId);
+      if (mode === 'template' && !template) {
+        return json(res, 400, { error: 'That Home message template is not available.' });
+      }
+
+      const config = parseHomeMessageConfig({
+        homeMessageConfig: JSON.stringify({ mode, templateId: templateId || 'message-1', customText })
+      });
+      await setSetting('homeMessageConfig', JSON.stringify({
+        mode: config.mode,
+        templateId: config.templateId,
+        customText: config.customText
+      }));
+      await addLog({
+        timestamp: now(),
+        actor: 'admin',
+        action: 'home-message.updated',
+        entityType: 'settings',
+        entityId: 'home-message',
+        metadataJson: JSON.stringify({ mode: config.mode, templateId: config.templateId, hasCustomText: Boolean(config.customText) })
+      });
+      return json(res, 200, { ok: true, homeMessage: homeMessageResponse({ homeMessageConfig: JSON.stringify({ mode: config.mode, templateId: config.templateId, customText: config.customText }) }) });
+    }
 
     if (action === 'smtp.test') {
       const verification = await verifySmtp();
